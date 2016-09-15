@@ -1,0 +1,6 @@
+[package]
+name = "kmeans"
+version = "0.1.0"
+authors = ["Callum <cgtrolley@gmail.com>"]
+
+[dependencies]
