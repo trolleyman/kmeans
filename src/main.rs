@@ -26,10 +26,12 @@ fn main() {
 		ps.push(vec2(g(-10.0, -9.0), g(-1.0, 1.0)))
 	}
 	
-	let cs = kmeans(ps, 3);
+	let (cs, score) = kmeans(ps, 3);
+	
 	for (i, c) in cs.iter().enumerate() {
-		println!("{}: [{}, {}]", i, c.mean.x, c.mean.y);
+		println!("{}: mean: [{}, {}]", i, c.mean.x, c.mean.y);
 	}
+	println!("total score: {}", score);
 }
 
 struct Cluster<T> {
@@ -37,7 +39,8 @@ struct Cluster<T> {
 	pub data: Vec<T>
 }
 
-fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> Vec<Cluster<T>> where
+// Returns clusters and the total score
+fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> (Vec<Cluster<T>>, F) where
 		F: BaseFloat,
 		T: Copy + Zero + MetricSpace<Metric = F> + std::ops::AddAssign + std::ops::Sub + std::ops::Div<F, Output=T> {
 	
@@ -91,19 +94,25 @@ fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> Vec<Cluster<T>> where
 		}
 	}
 	
+	let score = score_clusters(&means, &data);
+	
 	// Gather up clusters
 	let mut clusters = Vec::with_capacity(means.len());
-	for m in means {
-		clusters.push(Cluster{ mean:m, data:Vec::new() });
+	for i in 0..means.len() {
+		clusters.push(Cluster{
+			mean : means[i],
+			data : Vec::new()
+		});
 	}
 	
 	for (i, p) in data {
 		clusters[i].data.push(p);
 	}
 	
-	clusters
+	(clusters, score)
 }
 
+// Assigns data to the nearest mean.
 fn assign_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) where
 		F: BaseFloat,
 		T: Copy + MetricSpace<Metric = F> {
@@ -123,4 +132,19 @@ fn assign_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) where
 		// Assign to cluster
 		data[i].0 = min_j;
 	}
+}
+
+// Assigns a score to the clusters. Larger the score, the worse the cluster positions.
+fn score_clusters<T, F>(means: &[T], data: &[(usize, T)]) -> F where
+		F: BaseFloat,
+		T: Copy + MetricSpace<Metric = F> {
+	
+	let mut score = F::zero();
+	
+	// Sum up distances squared, as this will only be used for comparison
+	for &(i, p) in data.iter() {
+		score += means[i].distance2(p);
+	}
+	
+	score
 }
