@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io::{self, Write};
 use std::ops;
 
 use cg::prelude::*;
@@ -36,6 +37,7 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 	let mut sums = Vec::with_capacity(k);
 	for i in 0..iter {
 		print!("{}/{} k-means iteration... ", i + 1, iter);
+		io::stdout().flush().ok();
 		// Initialize clusters
 		mean_indices.clear();
 		means.clear();
