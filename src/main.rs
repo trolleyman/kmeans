@@ -34,42 +34,95 @@ fn main() {
 	println!("total score: {}", score);
 }
 
-struct Cluster<T> {
+
+pub struct Cluster<T> {
 	pub mean: T,
 	pub data: Vec<T>
 }
 
+const MAX_STEPS: usize = 64;
+
+// Performs the kmeans algorithm
+//   - original_data: the data to be cluster identified
+//   - k: the number of clusters to be identified
+//   - iter: the number of iterations of the kmeans algorithm to perform, and then take the best fitting option from
 // Returns clusters and the total score
-fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> (Vec<Cluster<T>>, F) where
+pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<Cluster<T>>, F) where
 		F: BaseFloat,
 		T: Copy + Zero + MetricSpace<Metric = F> + std::ops::AddAssign + std::ops::Sub + std::ops::Div<F, Output=T> {
 	
-	if k == 0 || k > data.len() {
-		panic!("kmeans: invalid k: 0 < k ({}) < data length ({})", k, data.len());
+	if k == 0 || k > original_data.len() {
+		panic!("kmeans: invalid k: 0 < k ({}) < data length ({})", k, original_data.len());
 	}
 	
-	// Initialize clusters
-	let mut means = Vec::new();
-	for _ in 0..k {
-		let i = rand::thread_rng().gen_range(0, data.len());
-		let m = data.swap_remove(i);
-		means.push(m);
-	}
-	for m in means.iter().cloned() {
-		data.push(m);
-	}
-	let mut data = data.into_iter().map(|p| (0, p)).collect();
+	// Do 16 iterations of the kmeans algorithm with 16 different random starting positions, and choose the best.
+	let mut best_means = None;
+	let mut best_data  = None;
+	let mut best_score = None;
 	
-	assign_clusters(&means, &mut data);
+	let mut means = Vec::with_capacity(k);
+	let mut data = original_data.iter().map(|&p| (0, p)).collect::<Vec<_>>();
+	let mut sums = Vec::with_capacity(k);
+	for _ in 0..iter {
+		// Initialize clusters
+		means.clear();
+		for _ in 0..k {
+			let i = rand::thread_rng().gen_range(0, data.len());
+			let (_, m) = data.swap_remove(i);
+			means.push(m);
+		}
+		for &m in means.iter() {
+			data.push((0, m));
+		}
+		assign_data_to_clusters(&means, &mut data);
+		
+		// Now perform an iteration
+		let score = kmeans_iter(&mut means, &mut data, &mut sums);
+		
+		match best_score {
+			Some(x) if !(score < x) => { // If current score isn't better than the best
+				continue;
+			}
+			_ => {}
+		}
+		
+		best_means = Some(means.clone());
+		best_data  = Some(data.clone());
+		best_score = Some(score);
+	}
+	let best_means = best_means.unwrap();
+	let best_data  = best_data .unwrap();
+	let best_score = best_score.unwrap();
+	
+	// Gather up clusters
+	let mut clusters = Vec::with_capacity(best_means.len());
+	for i in 0..best_means.len() {
+		clusters.push(Cluster{
+			mean : best_means[i],
+			data : Vec::new()
+		});
+	}
+	
+	for (i, p) in best_data {
+		clusters[i].data.push(p);
+	}
+	
+	(clusters, best_score)
+}
+
+// Perform the kmeans algorithm for MAX_STEPS steps, or until the configuration reaches a local optimum. Returns the score of the current cluster positions.
+fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut Vec<(F, T)>) -> F where
+		F: BaseFloat,
+		T: Copy + Zero + MetricSpace<Metric = F> + std::ops::AddAssign + std::ops::Sub + std::ops::Div<F, Output=T> {
 	
 	// Now for a certain number of steps
-	let mut sums = Vec::with_capacity(means.len());
+	sums.clear();
 	for _ in 0..means.len() {
 		sums.push((F::zero(), T::zero()));
 	}
 	
 	let threshold: F = F::from(0.0000001).unwrap();
-	for _ in 0..50 {
+	for _ in 0..MAX_STEPS {
 		// Sum up all points in each cluster
 		for i in 0..sums.len() {
 			sums[i] = (F::zero(), T::zero());
@@ -79,6 +132,7 @@ fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> (Vec<Cluster<T>>, F) where
 			sums[i].1 += p;
 		}
 		
+		// Get new mean of cluster
 		let mut skip = true;
 		for i in 0..means.len() {
 			let new_m = sums[i].1 / sums[i].0;
@@ -87,33 +141,20 @@ fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> (Vec<Cluster<T>>, F) where
 			}
 			means[i] = new_m;
 		}
-		assign_clusters(&means, &mut data);
+		// Reassign data points to clusters
+		assign_data_to_clusters(&*means, data);
 		
 		if skip {
 			break;
 		}
 	}
 	
-	let score = score_clusters(&means, &data);
-	
-	// Gather up clusters
-	let mut clusters = Vec::with_capacity(means.len());
-	for i in 0..means.len() {
-		clusters.push(Cluster{
-			mean : means[i],
-			data : Vec::new()
-		});
-	}
-	
-	for (i, p) in data {
-		clusters[i].data.push(p);
-	}
-	
-	(clusters, score)
+	// Return the score of the clusters
+	score_clusters(&means, &data)
 }
 
 // Assigns data to the nearest mean.
-fn assign_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) where
+fn assign_data_to_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) where
 		F: BaseFloat,
 		T: Copy + MetricSpace<Metric = F> {
 	
