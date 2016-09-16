@@ -2,7 +2,7 @@ extern crate cgmath as cg;
 extern crate rand;
 pub use cg::num_traits;
 
-use cg::{BaseFloat, vec2, Vector2, vec3, Vector3};
+use cg::{BaseFloat, vec2};
 use cg::prelude::*;
 
 use rand::Rng;
@@ -41,8 +41,6 @@ fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> Vec<Cluster<T>> where
 		F: BaseFloat,
 		T: Copy + Zero + MetricSpace<Metric = F> + std::ops::AddAssign + std::ops::Sub + std::ops::Div<F, Output=T> {
 	
-	let THRESHOLD: F = F::from(0.0000001).unwrap();
-	
 	if k == 0 || k > data.len() {
 		panic!("kmeans: invalid k: 0 < k ({}) < data length ({})", k, data.len());
 	}
@@ -66,6 +64,8 @@ fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> Vec<Cluster<T>> where
 	for _ in 0..means.len() {
 		sums.push((F::zero(), T::zero()));
 	}
+	
+	let threshold: F = F::from(0.0000001).unwrap();
 	for _ in 0..50 {
 		// Sum up all points in each cluster
 		for i in 0..sums.len() {
@@ -79,7 +79,7 @@ fn kmeans<T, F>(mut data: Vec<T>, k: usize) -> Vec<Cluster<T>> where
 		let mut skip = true;
 		for i in 0..means.len() {
 			let new_m = sums[i].1 / sums[i].0;
-			if means[i].distance2(new_m).abs() >= THRESHOLD {
+			if means[i].distance2(new_m).abs() >= threshold {
 				skip = false;
 			}
 			means[i] = new_m;
