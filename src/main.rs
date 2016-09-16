@@ -35,13 +35,13 @@ fn main() {
 	};
 	
 	let out_path = if args.len() == 3 {
-		args[2].clone();
+		PathBuf::from(args[2].clone())
 	} else {
 		let mut name = in_path.file_stem().unwrap().to_os_string();
 		name.push(" (Edited).");
 		name.push(in_path.extension().unwrap());
-		in_path.with_file_name(name);
-	}
+		in_path.with_file_name(name)
+	};
 	
 	let img = img.to_rgb();
 	let w = img.width();
