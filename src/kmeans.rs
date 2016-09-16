@@ -18,7 +18,7 @@ const MAX_STEPS: usize = 64;
 //   - The data, with the index of the cluster that it belongs to
 //   - The total score of the cluster arrangement
 pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<(usize, T)>, F) where
-		F: BaseFloat,
+		F: BaseFloat + ::std::fmt::Display,
 		T: Copy + Zero + MetricSpace<Metric = F> + ops::AddAssign + ops::Sub + ops::Div<F, Output=T> {
 	
 	if k == 0 || k > original_data.len() {
@@ -34,7 +34,8 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 	let mut means = Vec::with_capacity(k);
 	let mut data = original_data.iter().map(|&p| (0, p)).collect::<Vec<_>>();
 	let mut sums = Vec::with_capacity(k);
-	for _ in 0..iter {
+	for i in 0..iter {
+		print!("{}/{} k-means iteration... ", i + 1, iter);
 		// Initialize clusters
 		mean_indices.clear();
 		means.clear();
@@ -51,6 +52,8 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 		
 		// Now perform an iteration
 		let score = kmeans_iter(&mut means, &mut data, &mut sums);
+		
+		println!("score: {}", score);
 		
 		match best_score {
 			Some(x) if !(score < x) => { // If current score isn't better than the best
