@@ -8,30 +8,40 @@ use cg::prelude::*;
 use rand::Rng;
 
 fn main() {
-	fn g(min: f32, max: f32) -> f32 {
-		rand::thread_rng().gen_range(min, max)
-	}
-	let mut ps = vec![];
-	// Group 1
-	for _ in 0..10 {
-		ps.push(vec2(g(9.0, 11.0), g(9.0, 11.0)))
-	}
-	// Group 2
-	for _ in 0..10 {
-		ps.push(vec2(g(-1.0, 1.0), g(-1.0, 1.0)))
-	}
 	
-	// Group 3
-	for _ in 0..10 {
-		ps.push(vec2(g(-10.0, -9.0), g(-1.0, 1.0)))
+}
+
+#[cfg(test)]
+mod test {
+	#[test]
+	fn test_three_groups() {
+		fn g(min: f32, max: f32) -> f32 {
+			rand::thread_rng().gen_range(min, max)
+		}
+		let mut ps = vec![];
+		
+		const N: usize = 100;
+		// Group 1
+		for _ in 0..N {
+			ps.push(vec2(g(9.0, 11.0), g(9.0, 11.0)))
+		}
+		// Group 2
+		for _ in 0..N {
+			ps.push(vec2(g(-1.0, 1.0), g(-1.0, 1.0)))
+		}
+		
+		// Group 3
+		for _ in 0..N {
+			ps.push(vec2(g(-10.0, -9.0), g(-1.0, 1.0)))
+		}
+		
+		let (cs, score) = kmeans(&ps, 3);
+		
+		for (i, c) in cs.iter().enumerate() {
+			println!("{}: mean: [{}, {}]", i, c.mean.x, c.mean.y);
+		}
+		println!("total score: {}", score);
 	}
-	
-	let (cs, score) = kmeans(ps, 3);
-	
-	for (i, c) in cs.iter().enumerate() {
-		println!("{}: mean: [{}, {}]", i, c.mean.x, c.mean.y);
-	}
-	println!("total score: {}", score);
 }
 
 
