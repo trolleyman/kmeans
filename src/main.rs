@@ -14,33 +14,65 @@ use cg::vec3;
 
 use image::{RgbImage, ImageBuffer};
 
-fn main() {
-	let args: Vec<_> = args_os().collect();
-	
-	if args.len() < 2 || args.len() > 3 {
-		writeln!(io::stderr(), "Usage: kmeans <in-path> [out-path]").ok();
-		exit(1);
+fn usage() -> ! {
+	writeln!(io::stderr(), "Usage: kmeans <in-path> [k] [out-path]").ok();
+	exit(1);
+}
+
+struct ParsedArgs {
+	in_path: PathBuf,
+	out_path: PathBuf,
+	k: Option<usize>
+}
+impl ParsedArgs {
+	pub fn new() -> ParsedArgs {
+		let args: Vec<_> = args_os().collect();
+		
+		if args.len() < 2 || args.len() > 4 {
+			usage();
+		}
+		
+		let in_path = PathBuf::from(args[1].clone());
+		let mut out_path = None;
+		let mut k = None;
+		for i in 2..args.len() {
+			let s = args[i].clone();
+			match s.clone().into_string().ok().and_then(|s| s.parse::<usize>().ok()) {
+				Some(x) if k.is_none() => {
+					k = Some(x);
+				}
+				_ => {
+					out_path = Some(PathBuf::from(s));
+				}
+			}
+		}
+		
+		let out_path = out_path.unwrap_or_else(|| {
+			let mut name = in_path.file_stem().unwrap().to_os_string();
+			name.push(" (Edited).");
+			name.push(in_path.extension().unwrap());
+			in_path.with_file_name(name)
+		});
+		
+		ParsedArgs{
+			in_path: in_path,
+			out_path: out_path,
+			k: k
+		}
 	}
+}
+
+fn main() {
+	let args = ParsedArgs::new();
 	
-	let in_path = PathBuf::from(args[1].clone());
+	println!("Reading image from '{}'", args.in_path.display());
 	
-	println!("Reading image from '{}'", in_path.display());
-	
-	let img = match image::open(&in_path) {
+	let img = match image::open(&args.in_path) {
 		Ok(i) => i,
 		Err(e) => {
 			writeln!(io::stderr(), "Error: {}", e).ok();
 			exit(2);
 		}
-	};
-	
-	let out_path = if args.len() == 3 {
-		PathBuf::from(args[2].clone())
-	} else {
-		let mut name = in_path.file_stem().unwrap().to_os_string();
-		name.push(" (Edited).");
-		name.push(in_path.extension().unwrap());
-		in_path.with_file_name(name)
 	};
 	
 	let img = img.to_rgb();
@@ -58,7 +90,7 @@ fn main() {
 	}
 	
 	println!("Running kmeans algorithm");
-	let (means, data, score) = kmeans::kmeans(&data, 3, 8);
+	let (means, data, score) = kmeans::kmeans(&data, args.k.unwrap_or(3), 8);
 	println!("final score: {}", score);
 	for i in 0..data.len() {
 		let j = data[i].0;
@@ -67,9 +99,9 @@ fn main() {
 		data_bytes[i * 3 + 2] = means[j].z as u8;
 	}
 	
-	println!("Saving image to '{}'", out_path.display());
+	println!("Saving image to '{}'", args.out_path.display());
 	let img: RgbImage = ImageBuffer::from_raw(w, h, data_bytes).unwrap();
-	match img.save(out_path) {
+	match img.save(&args.out_path) {
 		Ok(()) => {},
 		Err(e) => {
 			writeln!(io::stderr(), "{}", e).ok();
