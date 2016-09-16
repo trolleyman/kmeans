@@ -2,7 +2,9 @@ extern crate cgmath as cg;
 extern crate rand;
 pub use cg::num_traits;
 
-use cg::{BaseFloat, vec2};
+use std::collections::HashSet;
+
+use cg::BaseFloat;
 use cg::prelude::*;
 
 use rand::Rng;
@@ -11,53 +13,18 @@ fn main() {
 	
 }
 
-#[cfg(test)]
-mod test {
-	#[test]
-	fn test_three_groups() {
-		fn g(min: f32, max: f32) -> f32 {
-			rand::thread_rng().gen_range(min, max)
-		}
-		let mut ps = vec![];
-		
-		const N: usize = 100;
-		// Group 1
-		for _ in 0..N {
-			ps.push(vec2(g(9.0, 11.0), g(9.0, 11.0)))
-		}
-		// Group 2
-		for _ in 0..N {
-			ps.push(vec2(g(-1.0, 1.0), g(-1.0, 1.0)))
-		}
-		
-		// Group 3
-		for _ in 0..N {
-			ps.push(vec2(g(-10.0, -9.0), g(-1.0, 1.0)))
-		}
-		
-		let (cs, score) = kmeans(&ps, 3);
-		
-		for (i, c) in cs.iter().enumerate() {
-			println!("{}: mean: [{}, {}]", i, c.mean.x, c.mean.y);
-		}
-		println!("total score: {}", score);
-	}
-}
-
-
-pub struct Cluster<T> {
-	pub mean: T,
-	pub data: Vec<T>
-}
-
 const MAX_STEPS: usize = 64;
 
 // Performs the kmeans algorithm
 //   - original_data: the data to be cluster identified
 //   - k: the number of clusters to be identified
 //   - iter: the number of iterations of the kmeans algorithm to perform, and then take the best fitting option from
-// Returns clusters and the total score
-pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<Cluster<T>>, F) where
+// 
+// Returns a tuple of
+//   - The means of the clusters
+//   - The data, with the index of the cluster that it belongs to
+//   - The total score of the cluster arrangement
+pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<(usize, T)>, F) where
 		F: BaseFloat,
 		T: Copy + Zero + MetricSpace<Metric = F> + std::ops::AddAssign + std::ops::Sub + std::ops::Div<F, Output=T> {
 	
@@ -70,19 +37,22 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<Cluster<
 	let mut best_data  = None;
 	let mut best_score = None;
 	
+	let mut mean_indices = HashSet::with_capacity(k);
 	let mut means = Vec::with_capacity(k);
 	let mut data = original_data.iter().map(|&p| (0, p)).collect::<Vec<_>>();
 	let mut sums = Vec::with_capacity(k);
 	for _ in 0..iter {
 		// Initialize clusters
+		mean_indices.clear();
 		means.clear();
 		for _ in 0..k {
-			let i = rand::thread_rng().gen_range(0, data.len());
-			let (_, m) = data.swap_remove(i);
+			let mut i = rand::thread_rng().gen_range(0, data.len());
+			while mean_indices.contains(&i) {
+				i = rand::thread_rng().gen_range(0, data.len());
+			}
+			let (_, m) = data[i];
+			mean_indices.insert(i);
 			means.push(m);
-		}
-		for &m in means.iter() {
-			data.push((0, m));
 		}
 		assign_data_to_clusters(&means, &mut data);
 		
@@ -104,20 +74,7 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<Cluster<
 	let best_data  = best_data .unwrap();
 	let best_score = best_score.unwrap();
 	
-	// Gather up clusters
-	let mut clusters = Vec::with_capacity(best_means.len());
-	for i in 0..best_means.len() {
-		clusters.push(Cluster{
-			mean : best_means[i],
-			data : Vec::new()
-		});
-	}
-	
-	for (i, p) in best_data {
-		clusters[i].data.push(p);
-	}
-	
-	(clusters, best_score)
+	(best_means, best_data, best_score)
 }
 
 // Perform the kmeans algorithm for MAX_STEPS steps, or until the configuration reaches a local optimum. Returns the score of the current cluster positions.
@@ -198,4 +155,39 @@ fn score_clusters<T, F>(means: &[T], data: &[(usize, T)]) -> F where
 	}
 	
 	score
+}
+
+#[cfg(test)]
+mod test {
+	#[test]
+	fn test_three_groups() {
+		use cg::vec2;
+		
+		fn g(min: f32, max: f32) -> f32 {
+			rand::thread_rng().gen_range(min, max)
+		}
+		let mut ps = vec![];
+		
+		const N: usize = 100;
+		// Group 1
+		for _ in 0..N {
+			ps.push(vec2(g(9.0, 11.0), g(9.0, 11.0)))
+		}
+		// Group 2
+		for _ in 0..N {
+			ps.push(vec2(g(-1.0, 1.0), g(-1.0, 1.0)))
+		}
+		
+		// Group 3
+		for _ in 0..N {
+			ps.push(vec2(g(-10.0, -9.0), g(-1.0, 1.0)))
+		}
+		
+		let (means, data, score) = kmeans(&ps, 3);
+		
+		for (i, m) in means.iter().enumerate() {
+			println!("{}: mean: [{}, {}]", i, m.x, m.y);
+		}
+		println!("total score: {}", score);
+	}
 }
