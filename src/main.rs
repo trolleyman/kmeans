@@ -50,8 +50,11 @@ impl ParsedArgs {
 		
 		let out_path = out_path.unwrap_or_else(|| {
 			let mut name = in_path.file_stem().unwrap().to_os_string();
-			name.push(format!("-{}.", k));
-			name.push(in_path.extension().unwrap());
+			name.push(format!("-{}", k));
+			if let Some(ext) = in_path.extension() {
+				name.push(".");
+				name.push(ext);
+			}
 			in_path.with_file_name(name)
 		});
 		
