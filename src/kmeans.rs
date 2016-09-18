@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::io::{self, Write};
 use std::ops;
+use std::time::{Instant, Duration};
 
 use cg::prelude::*;
 use cg::BaseFloat;
@@ -36,7 +37,9 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 	let mut data = original_data.iter().map(|&p| (0, p)).collect::<Vec<_>>();
 	let mut sums = Vec::with_capacity(k);
 	for i in 0..iter {
-		print!("{}/{} k-means iteration... ", i + 1, iter);
+		let start_time = Instant::now();
+		
+		print!("k-means iteration {}/{}... ", i + 1, iter);
 		io::stdout().flush().ok();
 		// Initialize clusters
 		mean_indices.clear();
@@ -55,7 +58,9 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 		// Now perform an iteration
 		let score = kmeans_iter(&mut means, &mut data, &mut sums);
 		
-		println!("score: {}", score);
+		let end_time = Instant::now();
+		let duration: Duration = end_time - start_time;
+		println!("({:.2} secs) score: {}", duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0), score);
 		
 		match best_score {
 			Some(x) if !(score < x) => { // If current score isn't better than the best
