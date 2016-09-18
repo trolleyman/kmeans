@@ -46,10 +46,11 @@ impl ParsedArgs {
 				}
 			}
 		}
+		let k = k.unwrap_or(3);
 		
 		let out_path = out_path.unwrap_or_else(|| {
 			let mut name = in_path.file_stem().unwrap().to_os_string();
-			name.push(" (Edited).");
+			name.push(format!("-{}.", k));
 			name.push(in_path.extension().unwrap());
 			in_path.with_file_name(name)
 		});
@@ -67,7 +68,7 @@ impl ParsedArgs {
 		ParsedArgs{
 			in_path: in_path,
 			out_path: out_path,
-			k: k.unwrap_or(3)
+			k: k
 		}
 	}
 }
