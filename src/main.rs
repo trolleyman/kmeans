@@ -100,7 +100,7 @@ fn main() {
 	}
 	
 	println!("Sorting {} data points into {} clusters using k-means algorithm", data.len(), args.k);
-	let (means, data, score) = kmeans::kmeans(&data, args.k, 8);
+	let (means, data, score) = kmeans::kmeans(&data, args.k, 4);
 	println!("final score: {}", score);
 	for i in 0..data.len() {
 		let j = data[i].0;
