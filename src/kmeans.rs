@@ -39,8 +39,9 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 	for i in 0..iter {
 		let start_time = Instant::now();
 		
-		print!("k-means iteration {}/{}... ", i + 1, iter);
+		print!("k-means iteration {}/{}", i + 1, iter);
 		io::stdout().flush().ok();
+		
 		// Initialize clusters
 		mean_indices.clear();
 		means.clear();
@@ -92,7 +93,19 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 	}
 	
 	let threshold: F = F::from(0.0000001).unwrap();
-	for _ in 0..MAX_STEPS {
+	let mut dots = 0;
+	for step in 0..MAX_STEPS {
+		// Print dot, if necessary
+		// One dot means 25% to 50%
+		// Two dots mean 50% to 75%
+		// Three dots mean 75% to 100%
+		let q = MAX_STEPS / 4;
+		let s = step + 1;
+		if s == q || s == q * 2 || s == q * 3 {
+			dots += 1;
+			print!(".");
+			io::stdout().flush().ok();
+		}
 		// Sum up all points in each cluster
 		for i in 0..sums.len() {
 			sums[i] = (F::zero(), T::zero());
@@ -118,6 +131,14 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 			break;
 		}
 	}
+	
+	while dots < 3 {
+		dots += 1;
+		print!(".");
+	}
+	
+	print!(" ");
+	io::stdout().flush().ok();
 	
 	// Return the score of the clusters
 	score_clusters(&means, &data)
