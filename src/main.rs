@@ -54,6 +54,16 @@ impl ParsedArgs {
 			in_path.with_file_name(name)
 		});
 		
+		let in_path = match in_path.canonicalize() {
+			Ok(p)  => p,
+			Err(_) => in_path,
+		};
+		
+		let out_path = match out_path.canonicalize() {
+			Ok(p)  => p,
+			Err(_) => out_path,
+		};
+		
 		ParsedArgs{
 			in_path: in_path,
 			out_path: out_path,
@@ -65,7 +75,7 @@ impl ParsedArgs {
 fn main() {
 	let args = ParsedArgs::new();
 	
-	println!("Reading image from '{}'", args.in_path.display());
+	println!("Reading image from '{}'...", args.in_path.display());
 	
 	let img = match image::open(&args.in_path) {
 		Ok(i) => i,
@@ -103,7 +113,7 @@ fn main() {
 		println!("R: {:3}, G: {:3}, B: {:3}", m.x as u8, m.y as u8, m.z as u8);
 	}
 	
-	println!("Saving image to '{}'", args.out_path.display());
+	println!("Saving image to '{}'...", args.out_path.display());
 	let img: RgbImage = ImageBuffer::from_raw(w, h, data_bytes).unwrap();
 	match img.save(&args.out_path) {
 		Ok(()) => {},
