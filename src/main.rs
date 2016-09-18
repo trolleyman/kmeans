@@ -100,9 +100,18 @@ fn main() {
 		));
 	}
 	
+	::std::mem::drop(data_bytes);
+	
 	println!("Sorting {} data points into {} clusters using k-means algorithm", data.len(), args.k);
 	let (means, data, score) = kmeans::kmeans(&data, args.k, 4);
 	println!("final score: {}", score);
+	
+	let mut data_bytes = Vec::with_capacity(data.len() * 3);
+	unsafe {
+		// This is fine as capacity is data.len() * 3
+		data_bytes.set_len(data.len() * 3);
+	}
+	
 	for i in 0..data.len() {
 		let j = data[i].0;
 		data_bytes[i * 3    ] = means[j].x as u8;
