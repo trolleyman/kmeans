@@ -83,7 +83,7 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 
 // Perform the kmeans algorithm for MAX_STEPS steps, or until the configuration reaches a local optimum. Returns the score of the current cluster positions.
 fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut Vec<(F, T)>) -> F where
-		F: BaseFloat,
+		F: BaseFloat /*+ ::std::fmt::Display*/,
 		T: Copy + Zero + MetricSpace<Metric = F> + ops::AddAssign + ops::Sub + ops::Div<F, Output=T> {
 	
 	// Now for a certain number of steps
@@ -94,11 +94,13 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 	
 	let threshold: F = F::from(0.0000001).unwrap();
 	let mut dots = 0;
+	let mut final_score = None;
 	for step in 0..MAX_STEPS {
 		// Print dot, if necessary
-		// One dot means 25% to 50%
-		// Two dots mean 50% to 75%
-		// Three dots mean 75% to 100%
+		// 
+		// One dot means 25% to 50% completed
+		// Two dots mean 50% to 75% completed
+		// Three dots mean 75% to 100% completed
 		let q = MAX_STEPS / 4;
 		let s = step + 1;
 		if s == q || s == q * 2 || s == q * 3 {
@@ -116,20 +118,23 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 		}
 		
 		// Get new mean of cluster
-		let mut skip = true;
 		for i in 0..means.len() {
-			let new_m = sums[i].1 / sums[i].0;
-			if means[i].distance2(new_m).abs() >= threshold {
-				skip = false;
-			}
-			means[i] = new_m;
+			means[i] = sums[i].1 / sums[i].0;
 		}
 		// Reassign data points to clusters
-		assign_data_to_clusters(&*means, data);
-		
-		if skip {
-			break;
+		let score = assign_data_to_clusters(&*means, data);
+		if let Some(prev_score) = final_score {
+			let diff = F::abs(prev_score - score);
+			let max = if prev_score > score { prev_score } else { score };
+			
+			//println!("diff: {} --- threshold: {}", score - prev_score, max * threshold);
+			
+			if diff < max * threshold {
+				final_score = Some(score);
+				break;
+			}
 		}
+		final_score = Some(score);
 	}
 	
 	while dots < 3 {
@@ -140,15 +145,15 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 	print!(" ");
 	io::stdout().flush().ok();
 	
-	// Return the score of the clusters
-	score_clusters(&means, &data)
+	final_score.unwrap_or_else(|| score_clusters(&means, &data))
 }
 
-// Assigns data to the nearest mean.
-fn assign_data_to_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) where
+// Assigns data to the nearest mean, and returns the total score of the clusters.
+fn assign_data_to_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) -> F where
 		F: BaseFloat,
 		T: Copy + MetricSpace<Metric = F> {
 	
+	let mut score = F::zero();
 	for i in 0..data.len() {
 		let p = data[i].1;
 		// Get min distance cluster
@@ -163,7 +168,10 @@ fn assign_data_to_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) where
 		}
 		// Assign to cluster
 		data[i].0 = min_j;
+		// Add to score
+		score += min_dist2;
 	}
+	score
 }
 
 // Assigns a score to the clusters. Larger the score, the worse the cluster positions.
