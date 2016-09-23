@@ -5,6 +5,7 @@ pub use cg::num_traits;
 
 mod kmeans;
 
+use std::cmp::Ordering;
 use std::env::args_os;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -106,7 +107,7 @@ fn main() {
 	::std::mem::drop(data_bytes);
 	
 	println!("Sorting {} data points into {} clusters using k-means algorithm", data.len(), args.k);
-	let (means, data, score) = kmeans::kmeans(&data, args.k, 4);
+	let (means, data, score) = kmeans::kmeans(&data, args.k, 6);
 	println!("final score: {}", score);
 	
 	let mut data_bytes = Vec::with_capacity(data.len() * 3);
@@ -115,15 +116,31 @@ fn main() {
 		data_bytes.set_len(data.len() * 3);
 	}
 	
+	let mut colours = Vec::with_capacity(means.len());
+	for m in means.iter() {
+		colours.push(vec3(m.x as u8, m.y as u8, m.z as u8));
+	}
+	
 	for i in 0..data.len() {
 		let j = data[i].0;
-		data_bytes[i * 3    ] = means[j].x as u8;
-		data_bytes[i * 3 + 1] = means[j].y as u8;
-		data_bytes[i * 3 + 2] = means[j].z as u8;
+		data_bytes[i * 3    ] = colours[j].x;
+		data_bytes[i * 3 + 1] = colours[j].y;
+		data_bytes[i * 3 + 2] = colours[j].z;
 	}
 	println!("{} colour(s) selected:", args.k);
-	for &m in means.iter() {
-		println!("R: {:3}, G: {:3}, B: {:3}", m.x as u8, m.y as u8, m.z as u8);
+	colours.sort_by(|a, b| {
+		if a.x != b.x {
+			a.x.cmp(&b.x)
+		} else if a.y != b.y {
+			a.y.cmp(&b.y)
+		} else if a.z != b.z {
+			a.z.cmp(&b.z)
+		} else {
+			Ordering::Equal
+		}
+	});
+	for &c in colours.iter() {
+		println!("R: {:3}, G: {:3}, B: {:3}", c.x, c.y, c.z);
 	}
 	
 	println!("Saving image to '{}'...", args.out_path.display());
