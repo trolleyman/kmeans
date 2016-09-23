@@ -8,6 +8,7 @@ use cg::BaseFloat;
 
 use rand::{thread_rng, Rng};
 
+const MIN_STEPS: usize = 16;
 const MAX_STEPS: usize = 64;
 
 // Performs the kmeans algorithm
@@ -129,7 +130,7 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 			
 			//println!("diff: {} --- threshold: {}", score - prev_score, max * threshold);
 			
-			if diff < max * threshold {
+			if step >= MIN_STEPS && diff < max * threshold {
 				final_score = Some(score);
 				break;
 			}
