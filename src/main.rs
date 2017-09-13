@@ -93,7 +93,7 @@ fn main() {
 	let img = img.to_rgb();
 	let w = img.width();
 	let h = img.height();
-	let mut data_bytes = img.into_raw();
+	let data_bytes = img.into_raw();
 	
 	let mut data = Vec::with_capacity(data_bytes.len() / 3);
 	for i in 0..data_bytes.len() / 3 {
