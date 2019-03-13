@@ -1,6 +1,8 @@
 extern crate cgmath as cg;
 extern crate image;
 extern crate rand;
+extern crate palette;
+
 pub use cg::num_traits;
 
 mod kmeans;
@@ -95,13 +97,15 @@ fn main() {
 	let h = img.height();
 	let data_bytes = img.into_raw();
 	
+	// Convert from sRGB to RGB
 	let mut data = Vec::with_capacity(data_bytes.len() / 3);
 	for i in 0..data_bytes.len() / 3 {
-		data.push(vec3(
-			data_bytes[i * 3    ] as f64,
-			data_bytes[i * 3 + 1] as f64,
-			data_bytes[i * 3 + 2] as f64
-		));
+		let (r, g, b) = palette::Srgb::new(
+			data_bytes[i * 3    ] as f64 / 255.0,
+			data_bytes[i * 3 + 1] as f64 / 255.0,
+			data_bytes[i * 3 + 2] as f64 / 255.0
+		).into_linear().into_components();
+		data.push(vec3(r, g, b));
 	}
 	
 	::std::mem::drop(data_bytes);
@@ -110,25 +114,29 @@ fn main() {
 	let (means, data, loss) = kmeans::kmeans(&data, args.k, 6);
 	println!("final loss: {}", loss);
 	
-	let mut data_bytes = Vec::with_capacity(data.len() * 3);
+	let mut data_bytes: Vec<u8> = Vec::with_capacity(data.len() * 3);
 	unsafe {
 		// This is fine as capacity is data.len() * 3
 		data_bytes.set_len(data.len() * 3);
 	}
 	
-	let mut colours = Vec::with_capacity(means.len());
+	let mut colors = Vec::with_capacity(means.len());
 	for m in means.iter() {
-		colours.push(vec3(m.x as u8, m.y as u8, m.z as u8));
+		let (r, g, b) = palette::LinSrgb::from_components((m.x, m.y, m.z))
+			.into_encoding::<palette::encoding::Srgb>()
+			.into_components();
+		colors.push(vec3((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8));
 	}
 	
+	// Convert from sRGB to RGB
 	for i in 0..data.len() {
 		let j = data[i].0;
-		data_bytes[i * 3    ] = colours[j].x;
-		data_bytes[i * 3 + 1] = colours[j].y;
-		data_bytes[i * 3 + 2] = colours[j].z;
+		data_bytes[i * 3    ] = colors[j].x;
+		data_bytes[i * 3 + 1] = colors[j].y;
+		data_bytes[i * 3 + 2] = colors[j].z;
 	}
 	println!("{} colour(s) selected:", args.k);
-	colours.sort_by(|a, b| {
+	colors.sort_by(|a, b| {
 		if a.x != b.x {
 			a.x.cmp(&b.x)
 		} else if a.y != b.y {
@@ -139,7 +147,7 @@ fn main() {
 			Ordering::Equal
 		}
 	});
-	for &c in colours.iter() {
+	for &c in colors.iter() {
 		println!("R: {:3}, G: {:3}, B: {:3}", c.x, c.y, c.z);
 	}
 	

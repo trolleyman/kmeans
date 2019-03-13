@@ -7,3 +7,4 @@ authors = ["Callum <cgtrolley@gmail.com>"]
 rand = "0.3.14"
 cgmath = "0.12.0"
 image = "0.10.3"
+palette = "0.4.1"
