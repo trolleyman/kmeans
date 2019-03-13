@@ -19,7 +19,7 @@ const MAX_STEPS: usize = 64;
 // Returns a tuple of
 //   - The means of the clusters
 //   - The data, with the index of the cluster that it belongs to
-//   - The total score of the cluster arrangement
+//   - The total loss of the cluster arrangement
 pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<(usize, T)>, F) where
 		F: BaseFloat + ::std::fmt::Display,
 		T: Copy + Zero + MetricSpace<Metric = F> + ops::AddAssign + ops::Sub + ops::Div<F, Output=T> {
@@ -31,7 +31,7 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 	// Do 16 iterations of the kmeans algorithm with 16 different random starting positions, and choose the best.
 	let mut best_means = None;
 	let mut best_data  = None;
-	let mut best_score = None;
+	let mut best_loss = None;
 	
 	let mut mean_indices = HashSet::with_capacity(k);
 	let mut means = Vec::with_capacity(k);
@@ -58,14 +58,14 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 		assign_data_to_clusters(&means, &mut data);
 		
 		// Now perform an iteration
-		let score = kmeans_iter(&mut means, &mut data, &mut sums);
+		let loss = kmeans_iter(&mut means, &mut data, &mut sums);
 		
 		let end_time = Instant::now();
 		let duration: Duration = end_time - start_time;
-		println!("({:.2} secs) score: {}", duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0), score);
+		println!("({:.2} secs) loss: {}", duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0), loss);
 		
-		match best_score {
-			Some(x) if !(score < x) => { // If current score isn't better than the best
+		match best_loss {
+			Some(x) if !(loss < x) => { // If current loss isn't better than the best
 				continue;
 			}
 			_ => {}
@@ -73,16 +73,16 @@ pub fn kmeans<T, F>(original_data: &[T], k: usize, iter: usize) -> (Vec<T>, Vec<
 		
 		best_means = Some(means.clone());
 		best_data  = Some(data.clone());
-		best_score = Some(score);
+		best_loss = Some(loss);
 	}
 	let best_means = best_means.unwrap();
 	let best_data  = best_data .unwrap();
-	let best_score = best_score.unwrap();
+	let best_loss = best_loss.unwrap();
 	
-	(best_means, best_data, best_score)
+	(best_means, best_data, best_loss)
 }
 
-// Perform the kmeans algorithm for MAX_STEPS steps, or until the configuration reaches a local optimum. Returns the score of the current cluster positions.
+// Perform the kmeans algorithm for MAX_STEPS steps, or until the configuration reaches a local optimum. Returns the loss of the current cluster positions.
 fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut Vec<(F, T)>) -> F where
 		F: BaseFloat /*+ ::std::fmt::Display*/,
 		T: Copy + Zero + MetricSpace<Metric = F> + ops::AddAssign + ops::Sub + ops::Div<F, Output=T> {
@@ -95,7 +95,7 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 	
 	let threshold: F = F::from(0.0000001).unwrap();
 	let mut dots = 0;
-	let mut final_score = None;
+	let mut final_loss = None;
 	for step in 0..MAX_STEPS {
 		// Print dot, if necessary
 		// 
@@ -123,19 +123,19 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 			means[i] = sums[i].1 / sums[i].0;
 		}
 		// Reassign data points to clusters
-		let score = assign_data_to_clusters(&*means, data);
-		if let Some(prev_score) = final_score {
-			let diff = F::abs(prev_score - score);
-			let max = if prev_score > score { prev_score } else { score };
+		let loss = assign_data_to_clusters(&*means, data);
+		if let Some(prev_loss) = final_loss {
+			let diff = F::abs(prev_loss - loss);
+			let max = if prev_loss > loss { prev_loss } else { loss };
 			
-			//println!("diff: {} --- threshold: {}", score - prev_score, max * threshold);
+			//println!("diff: {} --- threshold: {}", loss - prev_loss, max * threshold);
 			
 			if step >= MIN_STEPS && diff < max * threshold {
-				final_score = Some(score);
+				final_loss = Some(loss);
 				break;
 			}
 		}
-		final_score = Some(score);
+		final_loss = Some(loss);
 	}
 	
 	while dots < 3 {
@@ -146,15 +146,15 @@ fn kmeans_iter<T, F>(means: &mut Vec<T>, data: &mut Vec<(usize, T)>, sums: &mut 
 	print!(" ");
 	io::stdout().flush().ok();
 	
-	final_score.unwrap_or_else(|| score_clusters(&means, &data))
+	final_loss.unwrap_or_else(|| loss_clusters(&means, &data))
 }
 
-// Assigns data to the nearest mean, and returns the total score of the clusters.
+// Assigns data to the nearest mean, and returns the total loss of the clusters.
 fn assign_data_to_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) -> F where
 		F: BaseFloat,
 		T: Copy + MetricSpace<Metric = F> {
 	
-	let mut score = F::zero();
+	let mut loss = F::zero();
 	for i in 0..data.len() {
 		let p = data[i].1;
 		// Get min distance cluster
@@ -169,25 +169,25 @@ fn assign_data_to_clusters<T, F>(means: &[T], data: &mut Vec<(usize, T)>) -> F w
 		}
 		// Assign to cluster
 		data[i].0 = min_j;
-		// Add to score
-		score += min_dist2;
+		// Add to loss
+		loss += min_dist2;
 	}
-	score
+	loss
 }
 
-// Assigns a score to the clusters. Larger the score, the worse the cluster positions.
-fn score_clusters<T, F>(means: &[T], data: &[(usize, T)]) -> F where
+// Assigns a loss to the clusters. Larger the loss, the worse the cluster positions.
+fn loss_clusters<T, F>(means: &[T], data: &[(usize, T)]) -> F where
 		F: BaseFloat,
 		T: Copy + MetricSpace<Metric = F> {
 	
-	let mut score = F::zero();
+	let mut loss = F::zero();
 	
 	// Sum up distances squared, as this will only be used for comparison
 	for &(i, p) in data.iter() {
-		score += means[i].distance2(p);
+		loss += means[i].distance2(p);
 	}
 	
-	score
+	loss
 }
 
 #[cfg(test)]
@@ -216,11 +216,11 @@ mod test {
 			ps.push(vec2(g(-10.0, -9.0), g(-1.0, 1.0)))
 		}
 		
-		let (means, data, score) = kmeans(&ps, 3);
+		let (means, data, loss) = kmeans(&ps, 3);
 		
 		for (i, m) in means.iter().enumerate() {
 			println!("{}: mean: [{}, {}]", i, m.x, m.y);
 		}
-		println!("total score: {}", score);
+		println!("total loss: {}", loss);
 	}
 }

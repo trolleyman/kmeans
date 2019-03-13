@@ -107,8 +107,8 @@ fn main() {
 	::std::mem::drop(data_bytes);
 	
 	println!("Sorting {} data points into {} clusters using k-means algorithm", data.len(), args.k);
-	let (means, data, score) = kmeans::kmeans(&data, args.k, 6);
-	println!("final score: {}", score);
+	let (means, data, loss) = kmeans::kmeans(&data, args.k, 6);
+	println!("final loss: {}", loss);
 	
 	let mut data_bytes = Vec::with_capacity(data.len() * 3);
 	unsafe {
